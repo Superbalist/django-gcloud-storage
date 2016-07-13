@@ -18,7 +18,7 @@ from gcloud import storage
 from gcloud.exceptions import NotFound
 from gcloud.storage.bucket import Bucket
 
-__version__ = '0.1.0'
+__version__ = '0.1.1'
 
 DJANGO_17 = django.get_version().startswith('1.7.')
 
@@ -119,16 +119,17 @@ class DjangoGCloudStorage(Storage):
         if credentials_file_path is not None:
             self.credentials_file_path = credentials_file_path
         else:
-            self.credentials_file_path = settings.GCS_CREDENTIALS_FILE_PATH
+            self.credentials_file_path = getattr(settings, 'GCS_CREDENTIALS_FILE_PATH', None)
 
-        assert os.path.exists(self.credentials_file_path), "Credentials file not found"
+        if self.credentials_file_path is not None:
+            assert os.path.exists(self.credentials_file_path), "Credentials file not found"
 
         if project is not None:
             self.project_name = project
         else:
             self.project_name = settings.GCS_PROJECT
 
-        self.bucket_subdir = ''  # TODO should be a parameter
+        self.bucket_subdir = getattr(settings, 'GCS_BUCKET_SUBDIR', '')
 
     @property
     def client(self):
@@ -136,10 +137,13 @@ class DjangoGCloudStorage(Storage):
         :rtype: storage.Client
         """
         if not self._client:
-            self._client = storage.Client.from_service_account_json(
-                self.credentials_file_path,
-                project=self.project_name
-            )
+            if self.credentials_file_path:
+                self._client = storage.Client.from_service_account_json(
+                    self.credentials_file_path,
+                    project=self.project_name
+                )
+            else:
+                self._client = storage.Client(self.project_name)
         return self._client
 
     @property

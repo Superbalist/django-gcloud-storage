@@ -41,7 +41,14 @@ Update your Django settings and use it like any other Django storage module::
 
     GCS_PROJECT = "django-gcloud-storage"
     GCS_BUCKET = "django-gcloud-storage-bucket"
+
+If you need to instantiate using a JSON credential file, use::
+
     GCS_CREDENTIALS_FILE_PATH = "/path/to/gcs-credentials.json"
+
+You can also set a subdirectory prefix for all objects::
+
+    GCS_BUCKET_SUBDIR = "/your_path/"
 
 Features
 --------
