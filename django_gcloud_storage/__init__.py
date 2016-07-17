@@ -4,6 +4,7 @@ from __future__ import unicode_literals
 import datetime
 import os
 import re
+import mimetypes
 from tempfile import SpooledTemporaryFile
 
 import django
@@ -164,6 +165,12 @@ class DjangoGCloudStorage(Storage):
 
         blob = self.bucket.blob(name)
         blob.upload_from_file(content, size=total_bytes)
+
+        mimetype, encoding = mimetypes.guess_type(name)
+
+        if mimetype:
+            blob.content_type = mimetype
+            blob.patch()
 
         return name
 
