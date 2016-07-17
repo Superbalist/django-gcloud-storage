@@ -221,7 +221,12 @@ class DjangoGCloudStorage(Storage):
 
         blob = self.bucket.get_blob(name)
 
-        return blob.updated if blob is not None else None
+        updated = blob.updated if blob is not None else None
+
+        if updated and settings.USE_TZ is False:
+            updated = updated.replace(tzinfo=None)
+
+        return updated
 
     def listdir(self, path):
         path = safe_join(self.bucket_subdir, path)
