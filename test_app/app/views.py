@@ -1,10 +1,12 @@
-from django.core.urlresolvers import reverse_lazy
 from django.http import HttpResponse
 from django.shortcuts import get_object_or_404
 from django.views.generic.edit import FormView
 
 from test_app.app.forms import TestUploadForm
 from test_app.app.models import ModelWithFileField
+
+import django
+from django.urls import reverse_lazy
 
 
 class TestUploadView(FormView):
