@@ -1,5 +1,6 @@
 # py.test
 .cache
+.pytest_cache
 
 # tox
 .tox*
@@ -24,3 +25,10 @@ build/
 
 # test_app database
 test_app/db.sqlite3
+
+# venv
+.venv
+
+# direnv
+.direnv
+.envrc

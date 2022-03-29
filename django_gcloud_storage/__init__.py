@@ -6,40 +6,31 @@ import os
 import re
 import mimetypes
 from tempfile import SpooledTemporaryFile
+import mimetypes
+import urllib.parse
 
-import django
 from django.conf import settings
 from django.core.exceptions import SuspiciousFileOperation
 from django.core.files.base import File
 from django.core.files.storage import Storage
 from django.utils.deconstruct import deconstructible
-from django.utils.encoding import force_text, smart_str
-from gcloud import _helpers as gcloud_helpers
-from gcloud import storage
-from gcloud.exceptions import NotFound
-from gcloud.storage.bucket import Bucket
+from django.utils.encoding import force_str, smart_str
+from google.cloud import _helpers as gcloud_helpers
+from google.cloud import storage
+from google.cloud.exceptions import NotFound
+from google.cloud.storage.bucket import Bucket
 
-__version__ = '0.1.1'
-
-DJANGO_17 = django.get_version().startswith('1.7.')
-
-try:
-    # For Python 3.0 and later
-    from urllib import parse as urlparse
-except ImportError:
-    # Fall back to Python 2's urllib2
-    import urlparse
-
+__version__ = '0.5.0'
 
 def safe_join(base, path):
-    base = force_text(base).replace("\\", "/").lstrip("/").rstrip("/") + "/"
-    path = force_text(path).replace("\\", "/").lstrip("/")
+    base = force_str(base).replace("\\", "/").lstrip("/").rstrip("/") + "/"
+    path = force_str(path).replace("\\", "/").lstrip("/")
 
     # Ugh... there must be a better way that I can't think of right now
     if base == "/":
         base = ""
 
-    resolved_url = urlparse.urljoin(base, path)
+    resolved_url = urllib.parse.urljoin(base, path)
 
     resolved_url = re.sub("//+", "/", resolved_url)
 
@@ -69,7 +60,7 @@ class GCloudFile(File):
 
     def __init__(self, blob, maxsize=1000):
         """
-        :type blob: gcloud.storage.blob.Blob
+        :type blob: google.cloud.storage.blob.Blob
         """
         self._dirty = False
         self._tmpfile = SpooledTemporaryFile(
@@ -84,13 +75,7 @@ class GCloudFile(File):
     def _update_blob(self):
         # Specify explicit size to avoid problems with not yet spooled temporary files
         # Djangos File.size property already knows how to handle cases like this
-
-        if DJANGO_17 and self._tmpfile.name is None:  # Django bug #22307
-            size = self._tmpfile.tell()
-        else:
-            size = self.size
-
-        self._blob.upload_from_file(self._tmpfile, size=size, rewind=True)
+        self._blob.upload_from_file(self._tmpfile, size=self.size, rewind=True)
 
     def write(self, content):
         self._dirty = True
@@ -108,7 +93,7 @@ class GCloudFile(File):
 @deconstructible
 class DjangoGCloudStorage(Storage):
 
-    def __init__(self, project=None, bucket=None, credentials_file_path=None):
+    def __init__(self, project=None, bucket=None, credentials_file_path=None, use_unsigned_urls=None):
         self._client = None
         self._bucket = None
 
@@ -130,7 +115,13 @@ class DjangoGCloudStorage(Storage):
         else:
             self.project_name = settings.GCS_PROJECT
 
+        if use_unsigned_urls is not None:
+            self.use_unsigned_urls = use_unsigned_urls
+        else:
+            self.use_unsigned_urls = getattr(settings, "GCS_USE_UNSIGNED_URLS", False)
+
         self.bucket_subdir = getattr(settings, 'GCS_BUCKET_SUBDIR', '')
+        self.default_content_type = 'application/octet-stream'
 
     @property
     def client(self):
@@ -163,8 +154,13 @@ class DjangoGCloudStorage(Storage):
         # Required for InMemoryUploadedFile objects, as they have no fileno
         total_bytes = None if not hasattr(content, 'size') else content.size
 
+        # Set correct mimetype or fallback to default
+        _type, _ = mimetypes.guess_type(name)
+        content_type = getattr(content, 'content_type', None)
+        content_type = content_type or _type or self.default_content_type
+
         blob = self.bucket.blob(name)
-        blob.upload_from_file(content, size=total_bytes)
+        blob.upload_from_file(content, size=total_bytes, content_type=content_type)
 
         mimetype, encoding = mimetypes.guess_type(name)
 
@@ -181,8 +177,13 @@ class DjangoGCloudStorage(Storage):
         name = prepare_name(name)
 
         blob = self.bucket.get_blob(name)
-        tmpfile = GCloudFile(blob)
-        blob.download_to_file(tmpfile)
+        if blob is None:
+            # Create new
+            blob = self.bucket.blob(name)
+            tmpfile = GCloudFile(blob)
+        else:
+            tmpfile = GCloudFile(blob)
+            blob.download_to_file(tmpfile)
         tmpfile.seek(0)
 
         return tmpfile
@@ -193,7 +194,7 @@ class DjangoGCloudStorage(Storage):
 
         blob = self.bucket.get_blob(name)
 
-        # gcloud doesn't provide a public method for this
+        # google.cloud doesn't provide a public method for this
         value = blob._properties.get("timeCreated", None)
         if value is not None:
             naive = datetime.datetime.strptime(value, gcloud_helpers._RFC3339_MICROS)
@@ -222,7 +223,7 @@ class DjangoGCloudStorage(Storage):
 
         return blob.size if blob is not None else None
 
-    def modified_time(self, name):
+    def get_modified_time(self, name):
         name = safe_join(self.bucket_subdir, name)
         name = prepare_name(name)
 
@@ -256,5 +257,8 @@ class DjangoGCloudStorage(Storage):
     def url(self, name):
         name = safe_join(self.bucket_subdir, name)
         name = prepare_name(name)
+
+        if self.use_unsigned_urls:
+          return "https://storage.googleapis.com/{}/{}".format(self.bucket.name, name)
 
         return self.bucket.get_blob(name).generate_signed_url(expiration=datetime.datetime.now() + datetime.timedelta(hours=1))

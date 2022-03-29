@@ -2,17 +2,19 @@
 django-gcloud-storage
 =============================
 
-.. image:: https://badge.fury.io/py/django-gcloud-storage.png
-    :target: https://badge.fury.io/py/django-gcloud-storage
+.. image:: https://img.shields.io/pypi/v/django-gcloud-storage.svg
+    :target: https://pypi.python.org/pypi/django-gcloud-storage
 .. image:: https://img.shields.io/pypi/l/django-gcloud-storage.svg
     :target: https://pypi.python.org/pypi/django-gcloud-storage
 .. image:: https://img.shields.io/pypi/pyversions/django-gcloud-storage.svg
     :target: https://pypi.python.org/pypi/django-gcloud-storage
+.. image:: https://img.shields.io/pypi/format/django-gcloud-storage.svg
+    :target: https://pypi.python.org/pypi/django-gcloud-storage
 
-Django storage module implementation for Google Cloud Storage using the gcloud_
-python module by Google.
+Django storage module implementation for Google Cloud Storage using the
+google-cloud-storage_ python module by Google.
 
-.. _gcloud: https://pypi.python.org/pypi/gcloud
+.. _google-cloud-storage: https://pypi.org/project/google-cloud-storage/
 
 Notice: alpha release
 ---------------------
@@ -29,11 +31,11 @@ Install django-gcloud-storage::
     pip install django-gcloud-storage
 
 Create a GCS service account JSON keyfile and a bucket for your application.
-Check the documentation of gcloud-python and Google Cloud Platform for more
-details:
+Check the documentation of Google Cloud Platform for more details:
 
-https://gcloud-python.readthedocs.org/en/latest/gcloud-auth.html
-https://cloud.google.com/storage/docs/authentication#generating-a-private-key
+https://cloud.google.com/iam/docs/creating-managing-service-accounts#creating
+
+https://cloud.google.com/iam/docs/creating-managing-service-account-keys#creating
 
 Update your Django settings and use it like any other Django storage module::
 
@@ -53,7 +55,8 @@ You can also set a subdirectory prefix for all objects::
 Features
 --------
 
-* Fully tested on Python 2.7, 3.3 - 3.5 and PyPy with Django 1.7, 1.8 and 1.9
+* Fully tested on Python 3.7 - 3.10, PyPy 3.7-7.3.7 and PyPy 3.8-7.3.7 with
+  Django 2.2, 3.2 and 4.0
 * Files are locally downloaded as SpooledTemporaryFile objects to avoid memory
   abuse
 * Changed files will automatically be reuploaded to GCS when closed
@@ -64,6 +67,18 @@ Caveats
 * Files must be fully downloaded to be accessed and fully uploaded when changed
 * Everytime a file is opened via the storage module, it will be downloaded again
 * (development) Most tests need access to Google Cloud Storage
+
+Unsigned URLS
+-------------
+
+The module generates signed urls by default. This requires calls to storage API
+which might take some time if you need to return several objects at a time. You
+can generate unsigned urls using the following setting::
+
+  GCS_USE_UNSIGNED_URLS = True
+
+Keep in mind you might need to set the default object permission to public for
+the unsigned urls to work.
 
 Contributing
 ------------
